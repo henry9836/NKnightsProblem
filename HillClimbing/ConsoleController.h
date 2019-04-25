@@ -19,5 +19,3 @@ void Console_ColoredTEXTChar(char m_word, int m_color);
 void Console_ColoredTEXT(string m_word, int m_color);
 
 void Console_RainbowWrite(string m_word);
-
-void DrawConsole(FractalGrid m_grid);
