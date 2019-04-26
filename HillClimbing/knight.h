@@ -15,4 +15,3 @@ public:
 	int numOfKnights;
 };
 
-void CheckMyAttack();

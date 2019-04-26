@@ -1,20 +1,15 @@
 #include "knight.h"
 #include "ConsoleController.h"
 
+using namespace std;
+
 GRID m_grid;
 
-/*
+const float initalTemp = 1000.0f;
+const float finalTemp = 10.0f;
+float currentTemp = 1000.0f;
 
-HILL CLIMBING ORDER
-
-1. Evaluate the initial state. 
-2. Loop until a solution is found or there are no new operators left to be applied:   
-	- Select and apply a new operator   
-	- Evaluate the new state:    
-		goal -> quit    
-		better than current state -> new current state
-*/
-
+//Draw the board
 void DrawBoard() {
 	for (unsigned i = 0; i < m_grid.grid.size(); i++) //y
 	{
@@ -259,7 +254,8 @@ int CheckAttacks(int x, int y, GRID m_grid) {
 	return m_score; //return the score
 }
 
-GRID RegenerateBoard(int attack_value) {
+//RegenerateBoard takes two args, the attack value and mode which is false for hill climbing and true for annealing
+GRID RegenerateBoard(int attack_value, bool mode) {
 	
 	//Make a new empty grid
 	GRID newGrid;
@@ -271,36 +267,88 @@ GRID RegenerateBoard(int attack_value) {
 		}
 	}
 
-	//Keep knights that don't attack and replace the ones that do
-	for (size_t i = 0; i < newGrid.grid.size(); i++) //y
-	{
-		for (size_t j = 0; j < newGrid.grid.size(); j++) //x
+	if (!mode) { //If we are hill climbing
+		//Keep knights that don't attack and replace the ones that do
+		for (size_t i = 0; i < newGrid.grid.size(); i++) //y
 		{
-			if (m_grid.grid.at(i).at(j) == BOARD::KNIGHT) {
-				int m_att = CheckAttacks(j, i, m_grid);
-				//If this knight cannot attack anything keep
-				if (m_att == 0) {
-					newGrid.grid.at(i).at(j) = BOARD::KNIGHT;
-				}
-				//If this knight can attack anything move
-				else {
-					int x = rand() % m_grid.numOfKnights;
-					int y = rand() % m_grid.numOfKnights;
-					while (m_grid.grid.at(y).at(x) == BOARD::KNIGHT) { //Make sure we do not overwrite any positions with a knight already in
-						x = rand() % m_grid.numOfKnights;
-						y = rand() % m_grid.numOfKnights;
+			for (size_t j = 0; j < newGrid.grid.size(); j++) //x
+			{
+				if (m_grid.grid.at(i).at(j) == BOARD::KNIGHT) {
+					int m_att = CheckAttacks(j, i, m_grid);
+					//If this knight cannot attack anything keep
+					if (m_att == 0) {
+						newGrid.grid.at(i).at(j) = BOARD::KNIGHT;
 					}
-					newGrid.grid.at(y).at(x) = BOARD::KNIGHT;
+					//If this knight can attack anything move
+					else {
+						int x = rand() % m_grid.numOfKnights;
+						int y = rand() % m_grid.numOfKnights;
+						while (m_grid.grid.at(y).at(x) == BOARD::KNIGHT) { //Make sure we do not overwrite any positions with a knight already in
+							x = rand() % m_grid.numOfKnights;
+							y = rand() % m_grid.numOfKnights;
+						}
+						newGrid.grid.at(y).at(x) = BOARD::KNIGHT;
+					}
 				}
 			}
 		}
+
+		//Check total attacks if there are more then do not return the new grid
+		int att = CheckAttacks(-9999, -9999, newGrid);
+
+		if (att > attack_value) {
+			newGrid = m_grid;
+		}
 	}
 
-	//Check total attacks if there are more then do not return the new grid
-	int att = CheckAttacks(-9999, -9999, newGrid);
+	//If we are simulating annealing
+	else {
+		
+		//Keep knights that don't attack and replace the ones that do
+		for (size_t i = 0; i < newGrid.grid.size(); i++) //y
+		{
+			for (size_t j = 0; j < newGrid.grid.size(); j++) //x
+			{
+				if (m_grid.grid.at(i).at(j) == BOARD::KNIGHT) {
+					int m_att = CheckAttacks(j, i, m_grid);
+					//If this knight cannot attack anything keep
+					if (m_att == 0) {
+						newGrid.grid.at(i).at(j) = BOARD::KNIGHT;
+					}
+					//If this knight can attack anything move
+					else {
+						int x = rand() % m_grid.numOfKnights;
+						int y = rand() % m_grid.numOfKnights;
+						while (m_grid.grid.at(y).at(x) == BOARD::KNIGHT) { //Make sure we do not overwrite any positions with a knight already in
+							x = rand() % m_grid.numOfKnights;
+							y = rand() % m_grid.numOfKnights;
+						}
+						newGrid.grid.at(y).at(x) = BOARD::KNIGHT;
+					}
+				}
+			}
+		}
+		//Check total attacks if there are more then do not return the new grid
+		int c = CheckAttacks(-9999, -9999, newGrid) - CheckAttacks(-9999, -9999, m_grid);
 
-	if (att > attack_value) {
-		newGrid = m_grid;
+		cout << "VALUE OF C IS: " << c << endl;
+
+		if (c > 0) {
+			newGrid = m_grid;
+			currentTemp = currentTemp - 10.0f;
+			return newGrid;
+		}
+
+		else {
+			float m_rand = (rand() / (float)RAND_MAX * 1);
+			float e = (exp(c / currentTemp));
+			if (m_rand > e) {
+				newGrid = m_grid;
+				currentTemp = currentTemp - 10.0f;
+				return newGrid;
+			}
+		}
+		currentTemp = currentTemp - 10.0f;
 	}
 
 	return newGrid;
@@ -314,7 +362,7 @@ void solveNK() {
 	while (att != 0) {
 		count++;
 		Console_Clear();
-		m_grid = RegenerateBoard(att);
+		m_grid = RegenerateBoard(att, false);
 		DrawBoard();
 		att = CheckAttacks(-9999, -9999, m_grid);
 
@@ -338,7 +386,42 @@ void solveNK() {
 	Console_ColoredTEXT("\n", 15); //reset color
 }
 
+void solveNKAnneal() {
+	int count = 0;
+	Console_Clear();
+	DrawBoard();
+	int att = CheckAttacks(-9999, -9999, m_grid); //request global check
+	while (currentTemp > finalTemp) {
+		//while (att != 0) {
+			count++;
 
+			Console_Clear();
+			m_grid = RegenerateBoard(att, true);
+			DrawBoard();
+			att = CheckAttacks(-9999, -9999, m_grid);
+
+			for (signed i = 0; i < m_grid.numOfKnights; i++)
+			{
+				Console_ColoredTEXT("-", 12);
+			}
+			cout << endl << "ATTACKS: " << att << endl;
+			cout << "ITERATIONS: " << count << endl;
+			cout << "TEMPERTURE: " << currentTemp << endl;
+		//}
+	}
+	Console_Clear();
+	DrawBoard();
+	Console_ColoredTEXT("", 10);
+	for (signed i = 0; i < m_grid.numOfKnights; i++)
+	{
+		cout << "-";
+	}
+	cout << endl << "ATTACKS: " << att << endl;
+	cout << "ITERATIONS: " << count << endl;
+	cout << "TEMPERTURE: " << currentTemp << endl;
+	cout << "Solved!";
+	Console_ColoredTEXT("\n", 15); //reset color
+}
 
 int main() {
 
@@ -369,6 +452,8 @@ int main() {
 			break;
 		}
 		case 2: {
+			InitBoard();
+			solveNKAnneal();
 			break;
 		}
 		default: {
